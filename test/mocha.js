@@ -9,13 +9,15 @@ describe('adm-zip', () => {
 
     const destination = './test/xxx'
 
-    beforeEach(done => {
-        rimraf(destination, err => {
-            if (err) return done(err)
-            console.log('Cleared directory: ' + destination)
-            return done()
-        })
-    })
+    // afterEach(done => {
+    //     rimraf(destination, err => {
+    //         if (err) return done(err)
+    //         console.log('Cleared directory: ' + destination)
+    //         return done()
+    //     })
+    // })
+
+    afterEach(done => rimraf(destination, done));
 
     it('zip.extractAllTo()', () => {
         const zip = new Zip('./test/assets/ultra.zip');
