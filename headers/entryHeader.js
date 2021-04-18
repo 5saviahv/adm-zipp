@@ -1,9 +1,9 @@
-var Utils = require("../util"),
-    Constants = Utils.Constants;
+const Utils = require("../util");
+const Constants = Utils.Constants;
 
 /* The central directory file header */
 module.exports = function () {
-    var _verMade = 0x14, // v2.0
+    var _verMade = 20, // v2.0
         _version = 10, // v1.0
         _flags = 0,
         _method = 0,
@@ -21,7 +21,7 @@ module.exports = function () {
 
     _verMade |= Utils.isWin ? 0x0a00 : 0x0300;
 
-    var _dataHeader = {};
+    const _dataHeader = {};
 
     function setTime(val) {
         val = new Date(val);
@@ -63,13 +63,7 @@ module.exports = function () {
             return _method;
         },
         set method(val) {
-            switch (val) {
-                case Constants.STORED:
-                    this.version = 10;
-                case Constants.DEFLATED:
-                default:
-                    this.version = 20;
-            }
+            this.version = val === Constants.STORED ? 10 : 20;
             _method = val;
         },
 

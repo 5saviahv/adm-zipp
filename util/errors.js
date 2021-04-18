@@ -9,6 +9,8 @@ module.exports = {
     BAD_CRC: "CRC32 checksum failed",
     FILE_IN_THE_WAY: "There is a file in the way: %s",
     UNKNOWN_METHOD: "Invalid/unsupported compression method",
+    CALLBACK_FUNC: "Async method needs callback to be function",
+    PASS_PARAM: "Incompatible password parameter",
 
     /* Inflater error messages */
     AVAIL_DATA: "inflate::Available inflate data did not terminate",

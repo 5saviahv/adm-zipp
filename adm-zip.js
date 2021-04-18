@@ -7,6 +7,8 @@ const fs = Utils.FileSystem.require();
 fs.existsSync = fs.existsSync || pth.existsSync;
 
 const defaultOptions = {
+    // option "storedata": if true
+    storedata: false,
     // option "noSort" : if true it disables files sorting
     noSort: false,
     // read entries during load (initial loading may be slower)
@@ -449,7 +451,7 @@ module.exports = function (/**String*/ input, /** object */ options) {
             }
 
             // Set file attribute
-            var fileattr = entry.isDirectory ? 0x10 : 0; // (MS-DOS directory flag)
+            let fileattr = entry.isDirectory ? 0x10 : 0; // (MS-DOS directory flag)
 
             // extended attributes field for Unix
             if (!Utils.isWin) {
@@ -472,7 +474,7 @@ module.exports = function (/**String*/ input, /** object */ options) {
 
             entry.attr = fileattr;
 
-            entry.setData(content);
+            entry.setData(content, !opts.storedata);
             if (!update) _zip.setEntry(entry);
         },
 

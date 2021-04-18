@@ -1,7 +1,7 @@
 module.exports = function (/*Buffer*/ inbuf) {
-    var zlib = require("zlib");
+    const zlib = require("zlib");
 
-    var opts = { chunkSize: (parseInt(inbuf.length / 1024) + 1) * 1024 };
+    const opts = { chunkSize: (parseInt(inbuf.length / 1024) + 1) * 1024 };
 
     return {
         deflate: function () {
@@ -9,23 +9,21 @@ module.exports = function (/*Buffer*/ inbuf) {
         },
 
         deflateAsync: function (/*Function*/ callback) {
-            var tmp = zlib.createDeflateRaw(opts),
-                parts = [],
-                total = 0;
+            const tmp = zlib.createDeflateRaw(opts);
+            const parts = [];
+            let total = 0;
             tmp.on("data", function (data) {
                 parts.push(data);
                 total += data.length;
             });
             tmp.on("end", function () {
-                var buf = Buffer.alloc(total),
-                    written = 0;
-                buf.fill(0);
-                for (var i = 0; i < parts.length; i++) {
-                    var part = parts[i];
-                    part.copy(buf, written);
+                const result = Buffer.alloc(total);
+                let written = 0;
+                for (const part of parts) {
+                    part.copy(result, written);
                     written += part.length;
                 }
-                callback && callback(buf);
+                if (callback) callback(result);
             });
             tmp.end(inbuf);
         }
