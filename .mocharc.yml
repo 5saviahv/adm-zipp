@@ -10,8 +10,12 @@ reporter: list
 
 # test files
 spec:
-  - test/mocha.js
-  - test/crc/index.js
-  - test/multibyte/test.js
-  - test/**/*.test.js
-  - test/header.js
+  - test/mocha.ts
+  - test/crc/index.ts
+  - test/multibyte/test.ts
+  - test/**/*.test.ts
+  - test/header.ts
+
+# load ts-node
+require:
+  - ts-node/register
