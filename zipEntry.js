@@ -4,12 +4,12 @@ var Utils = require("./util"),
     Methods = require("./methods");
 
 module.exports = function (/*Buffer*/ input) {
-    var _entryHeader = new Headers.EntryHeader(),
-        _entryName = Buffer.alloc(0),
-        _comment = Buffer.alloc(0),
-        _isDirectory = false,
-        uncompressedData = null,
-        _extra = Buffer.alloc(0);
+    let _entryName = Buffer.alloc(0);
+    let _comment = Buffer.alloc(0);
+    let _isDirectory = false;
+    let uncompressedData = null;
+    const _entryHeader = new Headers.EntryHeader();
+    const _extra = { data: Buffer.alloc(0), entry: Buffer.alloc(0) };
 
     function getCompressedDataFromZip() {
         if (!input || !Buffer.isBuffer(input)) {
@@ -145,10 +145,6 @@ module.exports = function (/*Buffer*/ input) {
         }
     }
 
-    function readUInt64LE(buffer, offset) {
-        return (buffer.readUInt32LE(offset + 4) << 4) + buffer.readUInt32LE(offset);
-    }
-
     function parseExtra(data) {
         var offset = 0;
         var signature, size, part;
@@ -168,29 +164,32 @@ module.exports = function (/*Buffer*/ input) {
     //Override header field values with values from the ZIP64 extra field
     function parseZip64ExtendedInformation(data) {
         var size, compressedSize, offset, diskNumStart;
-
+        // Uncompressed Size
         if (data.length >= Constants.EF_ZIP64_SCOMP) {
-            size = readUInt64LE(data, Constants.EF_ZIP64_SUNCOMP);
+            // read value if it is marked as overflow
             if (_entryHeader.size === Constants.EF_ZIP64_OR_32) {
-                _entryHeader.size = size;
+                _entryHeader.size = Utils.readUInt64LE(data, Constants.EF_ZIP64_SUNCOMP);
             }
         }
+        // Compressed size
         if (data.length >= Constants.EF_ZIP64_RHO) {
-            compressedSize = readUInt64LE(data, Constants.EF_ZIP64_SCOMP);
+            // read value if it is marked as overflow
             if (_entryHeader.compressedSize === Constants.EF_ZIP64_OR_32) {
-                _entryHeader.compressedSize = compressedSize;
+                _entryHeader.compressedSize = Utils.readUInt64LE(data, Constants.EF_ZIP64_SCOMP);
             }
         }
+        // File Offset
         if (data.length >= Constants.EF_ZIP64_DSN) {
-            offset = readUInt64LE(data, Constants.EF_ZIP64_RHO);
+            // read value if it is marked as overflow
             if (_entryHeader.offset === Constants.EF_ZIP64_OR_32) {
-                _entryHeader.offset = offset;
+                _entryHeader.offset = Utils.readUInt64LE(data, Constants.EF_ZIP64_RHO);
             }
         }
+        // Started Disc Number
         if (data.length >= Constants.EF_ZIP64_DSN + 4) {
-            diskNumStart = data.readUInt32LE(Constants.EF_ZIP64_DSN);
+            // read value if it is marked as overflow
             if (_entryHeader.diskNumStart === Constants.EF_ZIP64_OR_16) {
-                _entryHeader.diskNumStart = diskNumStart;
+                _entryHeader.diskNumStart = data.readUInt32LE(Constants.EF_ZIP64_DSN);
             }
         }
     }
@@ -210,10 +209,27 @@ module.exports = function (/*Buffer*/ input) {
         },
 
         get extra() {
-            return _extra;
+            return _extra.header;
         },
         set extra(val) {
-            _extra = val;
+            _extra.header = val;
+            _entryHeader.extraLength = val.length;
+            parseExtra(val);
+        },
+
+        get extra_dataheader() {
+            return _extra.data;
+        },
+        set extra_dataheader(val) {
+            _extra.data = Utils.toBuffer(val);
+            _entryHeader.dataHeader.extraLen = _extra.data.length;
+        },
+
+        get extra_entryheader() {
+            return _extra.header;
+        },
+        set extra_entryheader(val) {
+            _extra.header = val;
             _entryHeader.extraLength = val.length;
             parseExtra(val);
         },
@@ -291,6 +307,16 @@ module.exports = function (/*Buffer*/ input) {
             return _entryHeader;
         },
 
+        packLocalHeader: function () {
+            // create header (buffer)
+            const header = Buffer.alloc(_entryHeader.dataHeaderSize);
+            let addpos = 0;
+            _entryHeader.dataHeaderToBinary().copy(header, addpos);
+            _entryName.copy(header, (addpos += Constants.LOCHDR));
+            _extra.data.copy(header, (addpos += _extra.data.length));
+            return header;
+        },
+
         packHeader: function () {
             // 1. create header (buffer)
             var header = _entryHeader.entryHeaderToBinary();
@@ -300,7 +326,7 @@ module.exports = function (/*Buffer*/ input) {
             addpos += _entryName.length;
             // 3. add extra data
             if (_entryHeader.extraLength) {
-                _extra.copy(header, addpos);
+                _extra.header.copy(header, addpos);
                 addpos += _entryHeader.extraLength;
             }
             // 4. add file comment

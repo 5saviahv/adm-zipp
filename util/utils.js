@@ -6,23 +6,26 @@ const isWin = typeof process === "object" && "win32" === process.platform;
 // Not truely 64-bit versions, just 48-bit versions
 // javascript numbers can handle max 52-bit after that you have to switch to BigInt's
 // BigInt's require at least node 10.20 or newer
+
+const testPos = (index, length) => Number.isNaN(index) || index < 0 || index > length;
+
 function readUInt64LE(/*Buffer*/ inbuf, /*int*/ index) {
     if (!Buffer.isBuffer(inbuf)) {
         throw new TypeError("inbuf has to be Buffer type");
     }
-    if (index < 0 || index + 8 > inbuf.length) {
-        throw new RangeError("read position out of range");
+    if (testPos(index, inbuf.length - 8)) {
+        throw new RangeError("position out of range");
     }
-    if (typeof Buffer.readBigInt64LE !== "undefined") {
-        return inbuf.writeBigInt64LE(value, index);
+    if (typeof Buffer.readBigInt64LE === "function") {
+        // true 64-bit version, but expect BigInt for its value
+        return inbuf.readBigInt64LE(index);
     } else {
         // Not truely 64-bit version, just 48-bit version
-        const ret = inbuf.readUIntLE(value, index, 6);
-        const zero = inbuf.readUIntLE(value, index + 6, 2);
-        if (zero !== 0) {
-            throw new RangeError("64 bit value out of Number range");
+        // if higher bits arent 0's then value is bigger than expected
+        if (inbuf.readUInt16LE(index + 6) !== 0) {
+            throw new RangeError("64 bit value is bigger then 48-bit supported range");
         }
-        return ret;
+        return inbuf.readUIntLE(index, 6);
     }
 }
 
@@ -30,17 +33,15 @@ function writeUInt64LE(/*Buffer*/ inbuf, /*number*/ position, /*Number, BigInt*/
     if (!Buffer.isBuffer(inbuf)) {
         throw new TypeError("inbuf has to be Buffer type");
     }
-    if (position < 0 || position + 8 > inbuf.length) {
-        throw new RangeError("write position out of range");
+    if (testPos(position, inbuf.length - 8)) {
+        throw new RangeError("position out of range");
     }
-
-    if (typeof Buffer.writeBigInt64LE !== "undefined") {
+    if (typeof Buffer.writeBigInt64LE === "function") {
+        // true 64-bit version, but uses BigInt
         return inbuf.writeBigInt64LE(value, position);
     } else {
         // Not truely 64-bit version, just 48-bit version
-        inbuf.fill(0, position, position + 8);
-        inbuf.writeUIntLE(value, position, 6);
-        return position + 8;
+        return inbuf.writeUInt32LE(0, inbuf.writeUIntLE(value, position, 6));
     }
 }
 
@@ -150,10 +151,11 @@ module.exports = (function () {
                 try {
                     fs.writeSync(fd, content, 0, content.length, 0);
                 } finally {
+                    fs.fchmodSync(fd, attr || 438);
                     fs.closeSync(fd);
                 }
             }
-            fs.chmodSync(path, attr || 438);
+            //fs.chmodSync(path, attr || 438);
             return true;
         },
 

@@ -31,5 +31,8 @@ module.exports = {
     FILE_NOT_FOUND: "File not found: %s",
     NOT_IMPLEMENTED: "Not implemented",
     INVALID_FILENAME: "Invalid filename",
-    INVALID_FORMAT: "Invalid or unsupported zip format. No END header found"
+    INVALID_FORMAT: "Invalid or unsupported zip format. No END header found",
+
+    /* Not supported (maybe more data for user) */
+    NOSUPPORT_MULTIDISK : "Support for multi-disk files is not implemented"
 };

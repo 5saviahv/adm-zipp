@@ -15,7 +15,7 @@ const defaultOptions = {
     method: Utils.Constants.NONE
 };
 
-module.exports = function (/**String*/ input, /** object */ options) {
+function admzip(/**String*/ input, /** object */ options) {
     let inBuffer = null;
 
     // create object based default options, allowing them to be overwritten
@@ -539,6 +539,7 @@ module.exports = function (/**String*/ input, /** object */ options) {
             }
             // The reverse operation for attr depend on method addFile()
             var fileAttr = item.attr ? (((item.attr >>> 0) | 0) >> 16) & 0xfff : 0;
+            var fileAttr2 = item.header.fileAttr;
             Utils.writeFileTo(target, content, overwrite, fileAttr);
 
             return true;
@@ -729,4 +730,6 @@ module.exports = function (/**String*/ input, /** object */ options) {
             return _zip.compressToBuffer();
         }
     };
-};
+}
+
+module.exports = admzip;

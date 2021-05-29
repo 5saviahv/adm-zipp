@@ -47,7 +47,8 @@ describe("headers", () => {
                 totalEntries: 0xface,
                 size: "3053 bytes",
                 offset: "0xC0FFEE",
-                commentLength: 0
+                commentLength: 0,
+                zip64: false
             });
         });
 
@@ -70,13 +71,46 @@ describe("headers", () => {
                 size: "0 bytes",
                 offset: "0x0000",
                 diskEntries: 0,
-                commentLength: 0
+                commentLength: 0,
+                zip64: false
             });
 
             // test toString function (remove CR from CRLF)
             expect(mainh.toString().replace(/\r/g, "")).to.equal(
-                '{\n\t"diskEntries": 0,\n\t"totalEntries": 0,\n\t"size": "0 bytes",\n\t"offset": "0x0000",\n\t"commentLength": 0\n}'
+                '{\n\t"diskEntries": 0,\n\t"totalEntries": 0,\n\t"size": "0 bytes",\n\t"offset": "0x0000",\n\t"commentLength": 0,\n\t"zip64": false\n}'
             );
+        });
+
+        describe("zip64 version", () => {
+            const mainHeader = require("../headers/mainHeader");
+            // main header with one entry
+            const oneZip64 = Buffer.from(
+                "UEsGBiwAAAAAAAAAAAAtAAAAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABQSwYHAAAAAAAAAAAAAAAAAQAAAFBLBQYAAAAAAQABAP//////////AAA=",
+                "base64"
+            );
+
+            // write new empty file
+            it("no entries fallback", () => {
+                const mainh = new mainHeader();
+                mainh.zip64format = true;
+                //mainh.totalEntries = 1;
+                const buf = mainh.toBinary();
+
+                expect(buf.length).to.equal(empty.length);
+                expect(buf).to.eql(empty);
+            });
+
+            // write new empty file
+            it("one entry", () => {
+                const mainh = new mainHeader();
+                mainh.zip64format = true;
+                mainh.diskEntries = 1;
+                mainh.totalEntries = 1;
+                const buf = mainh.toBinary();
+
+                expect(buf.length).to.equal(oneZip64.length);
+                expect(buf).to.eql(oneZip64);
+            });
         });
     });
 

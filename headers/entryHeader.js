@@ -25,7 +25,7 @@ module.exports = function () {
     // Without it file names may be corrupted for other apps when file names use unicode chars
     _flags |= Constants.FLG_EFS;
 
-    var _dataHeader = {};
+    const _dataHeader = { extraLen: 0 };
 
     function setTime(val) {
         val = new Date(val);
@@ -167,6 +167,10 @@ module.exports = function () {
             return Constants.CENHDR + _fnameLen + _extraLen + _comLen;
         },
 
+        get dataHeaderSize() {
+            return Constants.LOCHDR + _fnameLen + (_dataHeader.extraLen ? _dataHeader.extraLen : 0);
+        },
+
         get realDataOffset() {
             return _offset + Constants.LOCHDR + _dataHeader.fnameLen + _dataHeader.extraLen;
         },
@@ -176,31 +180,30 @@ module.exports = function () {
         },
 
         loadDataHeaderFromBinary: function (/*Buffer*/ input) {
-            var data = input.slice(_offset, _offset + Constants.LOCHDR);
+            const data = input.slice(_offset, _offset + Constants.LOCHDR);
             // 30 bytes and should start with "PK\003\004"
             if (data.readUInt32LE(0) !== Constants.LOCSIG) {
                 throw new Error(Utils.Errors.INVALID_LOC);
             }
-            _dataHeader = {
-                // version needed to extract
-                version: data.readUInt16LE(Constants.LOCVER),
-                // general purpose bit flag
-                flags: data.readUInt16LE(Constants.LOCFLG),
-                // compression method
-                method: data.readUInt16LE(Constants.LOCHOW),
-                // modification time (2 bytes time, 2 bytes date)
-                time: data.readUInt32LE(Constants.LOCTIM),
-                // uncompressed file crc-32 value
-                crc: data.readUInt32LE(Constants.LOCCRC),
-                // compressed size
-                compressedSize: data.readUInt32LE(Constants.LOCSIZ),
-                // uncompressed size
-                size: data.readUInt32LE(Constants.LOCLEN),
-                // filename length
-                fnameLen: data.readUInt16LE(Constants.LOCNAM),
-                // extra field length
-                extraLen: data.readUInt16LE(Constants.LOCEXT)
-            };
+
+            // version needed to extract
+            _dataHeader.version = data.readUInt16LE(Constants.LOCVER);
+            // general purpose bit flag
+            _dataHeader.flags = data.readUInt16LE(Constants.LOCFLG);
+            // compression method
+            _dataHeader.method = data.readUInt16LE(Constants.LOCHOW);
+            // modification time (2 bytes time, 2 bytes date)
+            _dataHeader.time = data.readUInt32LE(Constants.LOCTIM);
+            // uncompressed file crc-32 value
+            _dataHeader.crc = data.readUInt32LE(Constants.LOCCRC);
+            // compressed size
+            _dataHeader.compressedSize = data.readUInt32LE(Constants.LOCSIZ);
+            // uncompressed size
+            _dataHeader.size = data.readUInt32LE(Constants.LOCLEN);
+            // filename length
+            _dataHeader.fnameLen = data.readUInt16LE(Constants.LOCNAM);
+            // extra field length
+            _dataHeader.extraLen = data.readUInt16LE(Constants.LOCEXT);
         },
 
         loadFromBinary: function (/*Buffer*/ data) {
@@ -262,7 +265,7 @@ module.exports = function () {
             // filename length
             data.writeUInt16LE(_fnameLen, Constants.LOCNAM);
             // extra field length
-            data.writeUInt16LE(_extraLen, Constants.LOCEXT);
+            data.writeUInt16LE(_dataHeader.extraLen, Constants.LOCEXT);
             return data;
         },
 

@@ -59,7 +59,7 @@ module.exports = {
     // 4.3.14 - Zip64 end of central directory record
     ZIP64ENDSIG      : 0x06064b50, // zip64 signature, "PK\006\006"
     ZIP64ENDHDR      : 56, // zip64 record minimum size
-    ZIP64ENDLEAD     : 12, // leading bytes at the start of the record, not counted by the value stored in ZIP64SIZE
+    ZIP64ENDLEAD     : 12, // leading bytes at the start of the record, not counted by the value stored in ZIP64ENDSIZE
     ZIP64ENDSIZE     : 4, // zip64 size of the central directory record
     ZIP64ENDVEM      : 12, // zip64 version made by
     ZIP64ENDVER      : 14, // zip64 version needed to extract
@@ -70,6 +70,9 @@ module.exports = {
     ZIP64ENDSIZ      : 40, // zip64 central directory size in bytes
     ZIP64ENDOFF      : 48, // offset of start of central directory with respect to the starting disk number
     ZIP64EXTRA       : 56, // extensible data sector
+    ZIP64_OR_32      : 0xffffffff,
+    ZIP64_OR_16      : 0xffff,
+    ZIP64_OR_8       : 0xff,
 
     /* Compression methods */
     STORED           : 0, // no compression
@@ -93,20 +96,20 @@ module.exports = {
     AES_ENCRYPT      : 99, // WinZIP AES encryption method
 
     /* General purpose bit flag */
-    // values can obtained with expression 2**bitnr
-    FLG_ENC          : 1,    // Bit 0: encrypted file
-    FLG_COMP1        : 2,    // Bit 1, compression option
-    FLG_COMP2        : 4,    // Bit 2, compression option
-    FLG_DESC         : 8,    // Bit 3, data descriptor
-    FLG_ENH          : 16,   // Bit 4, enhanced deflating
-    FLG_PATCH        : 32,   // Bit 5, indicates that the file is compressed patched data.
-    FLG_STR          : 64,   // Bit 6, strong encryption (patented)
-                             // Bits 7-10: Currently unused.
-    FLG_EFS          : 2048, // Bit 11: Language encoding flag (EFS)
-                             // Bit 12: Reserved by PKWARE for enhanced compression.
-                             // Bit 13: encrypted the Central Directory (patented).
-                             // Bits 14-15: Reserved by PKWARE.
-    FLG_MSK          : 4096, // mask header values
+    // values can obtained with expression 1<<bitnr
+    FLG_ENC          : 1<<0,   // Bit 0: encrypted file
+    FLG_COMP1        : 1<<1,   // Bit 1, compression option
+    FLG_COMP2        : 1<<2,   // Bit 2, compression option
+    FLG_DESC         : 1<<3,   // Bit 3, data descriptor
+    FLG_ENH          : 1<<4,   // Bit 4, enhanced deflating
+    FLG_PATCH        : 1<<5,   // Bit 5, indicates that the file is compressed patched data.
+    FLG_STR          : 1<<6,   // Bit 6, strong encryption (patented)
+                               // Bits 7-10: Currently unused.
+    FLG_EFS          : 1<<11,  // Bit 11: Language encoding flag (EFS)
+                               // Bit 12: Reserved by PKWARE for enhanced compression.
+                               // Bit 13: encrypted the Central Directory (patented).
+                               // Bits 14-15: Reserved by PKWARE.
+    FLG_MSK          : 0xffff, // mask header values
 
     /* Load type */
     FILE             : 2,

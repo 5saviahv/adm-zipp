@@ -85,13 +85,15 @@ describe("adm-zip", () => {
         const files = walk(destination);
         expect(files.sort()).to.deep.equal(
             [
-                pth.normalize("./test/xxx/attributes_test/asd/New Text Document.txt"),
-                pth.normalize("./test/xxx/attributes_test/blank file.txt"),
-                pth.normalize("./test/xxx/attributes_test/New folder/hidden.txt"),
-                pth.normalize("./test/xxx/attributes_test/New folder/hidden_readonly.txt"),
-                pth.normalize("./test/xxx/attributes_test/New folder/readonly.txt"),
-                pth.normalize("./test/xxx/utes_test/New folder/somefile.txt")
-            ].sort()
+                "./test/xxx/attributes_test/asd/New Text Document.txt",
+                "./test/xxx/attributes_test/blank file.txt",
+                "./test/xxx/attributes_test/New folder/hidden.txt",
+                "./test/xxx/attributes_test/New folder/hidden_readonly.txt",
+                "./test/xxx/attributes_test/New folder/readonly.txt",
+                "./test/xxx/utes_test/New folder/somefile.txt"
+            ]
+                .map(pth.normalize)
+                .sort()
         );
     });
 
@@ -135,6 +137,19 @@ describe("adm-zip", () => {
 
         const zip2Entries = zip2.getEntries().map((e) => e.entryName);
         expect(zip2Entries).to.deep.equal(["c.txt", "b.txt", "a.txt"]);
+    });
+
+    it("read zip64 file", () => {
+        const zip = new Zip("./test/assets/zip64_tiny.zip", { readEntries: true, noSort: true });
+        const zipEntries = zip.getEntries();
+        expect(zipEntries.length).to.equal(1);
+
+        zipEntries.forEach((e) => zip.extractEntryTo(e, destination, true, true));
+        const files = walk(destination);
+        expect(files.sort()).to.deep.equal(["./test/xxx/README"].map(pth.normalize).sort());
+
+        const data = zip.readAsText(zipEntries[0].entryName);
+        expect(data).to.equal("This small file is in ZIP64 format.\n");
     });
 });
 

@@ -16,7 +16,8 @@ module.exports = function (/*Buffer|null*/ inBuffer, /** object */ options) {
 
     if (inBuffer) {
         // is a memory buffer
-        readMainHeader(opts.readEntries);
+        readMainHeader(opts.deepSearch);
+        if (opts.readEntries) readEntries();
     } else {
         // none. is a new file
         loadedEntries = true;
@@ -52,7 +53,7 @@ module.exports = function (/*Buffer|null*/ inBuffer, /** object */ options) {
             entry.entryName = inBuffer.slice(tmp, (tmp += entry.header.fileNameLength));
 
             if (entry.header.extraLength) {
-                entry.extra = inBuffer.slice(tmp, (tmp += entry.header.extraLength));
+                entry.extra_entryheader = inBuffer.slice(tmp, (tmp += entry.header.extraLength));
             }
 
             if (entry.header.commentLength) entry.comment = inBuffer.slice(tmp, tmp + entry.header.commentLength);
@@ -61,50 +62,53 @@ module.exports = function (/*Buffer|null*/ inBuffer, /** object */ options) {
 
             entryList[i] = entry;
             entryTable[entry.entryName] = entry;
+
+            entry.header.loadDataHeaderFromBinary(inBuffer);
         }
     }
 
-    function readMainHeader(/*Boolean*/ readNow) {
-        var i = inBuffer.length - Utils.Constants.ENDHDR, // END header size
-            max = Math.max(0, i - 0xffff), // 0xFFFF is the max zip file comment length
-            n = max,
-            endStart = inBuffer.length,
-            endOffset = -1, // Start offset of the END header
-            commentEnd = 0;
+    /**
+     *
+     * @param {Boolean} deepSearch - Find header from entire buffer
+     */
+    function readMainHeader(/*Boolean*/ deepSearch) {
+        let i = inBuffer.length - Utils.Constants.ENDHDR; // END header size
+        let endOffset = -1; // Start offset of the END header
+        const max = deepSearch ? 0 : Math.max(0, i - 0xffff); // 0xFFFF is the max zip file comment length
 
-        for (i; i >= n; i--) {
+        for (i; i >= max; i--) {
             if (inBuffer[i] !== 0x50) continue; // quick check that the byte is 'P'
+            // check is value "PK\005\006"
             if (inBuffer.readUInt32LE(i) === Utils.Constants.ENDSIG) {
-                // "PK\005\006"
                 endOffset = i;
-                commentEnd = i;
-                endStart = i + Utils.Constants.ENDHDR;
-                // We already found a regular signature, let's look just a bit further to check if there's any zip64 signature
-                n = i - Utils.Constants.ZIP64LOCHDR;
-                continue;
-            }
-
-            if (inBuffer.readUInt32LE(i) === Utils.Constants.ZIP64LOCSIG) {
-                // Found a zip64 signature, let's continue reading the whole zip64 record
-                n = max;
-                continue;
-            }
-
-            if (inBuffer.readUInt32LE(i) === Utils.Constants.ZIP64ENDSIG) {
-                // Found the zip64 record, let's determine it's size
-                endOffset = i;
-                endStart = i + Utils.readUInt64LE(inBuffer, i + Utils.Constants.ZIP64ENDSIZE) + Utils.Constants.ZIP64ENDLEAD;
                 break;
             }
         }
 
         if (!~endOffset) throw new Error(Utils.Errors.INVALID_FORMAT);
 
-        mainHeader.loadFromBinary(inBuffer.slice(endOffset, endStart));
-        if (mainHeader.commentLength) {
-            _comment = inBuffer.slice(commentEnd + Utils.Constants.ENDHDR);
+        mainHeader.ParseEcd32(inBuffer, endOffset);
+
+        // try locate Zip64 headers (locating header should be directly before end header)
+        if (inBuffer.readUInt32LE(endOffset - Utils.Constants.ZIP64LOCHDR) === Utils.Constants.ZIP64LOCSIG) {
+            const locator = mainHeader.Parse_Locator(inBuffer, endOffset - Utils.Constants.ZIP64LOCHDR);
+
+            if ((mainHeader.ThisDisk === locator.NumDisks - 1 || mainHeader.ThisDisk === 0xffff) && locator.Ecd64Disk < locator.NumDisks) {
+                if (locator.Ecd64Disk !== mainHeader.ThisDisk && mainHeader.ThisDisk !== 0xffff) throw new Error(Utils.Errors.NOT_IMPLEMENTED);
+                // const absEcd64 = i - (Utils.Constants.ZIP64LOCHDR + Utils.Constants.ZIP64ENDHDR);
+                // const noExtData = absEcd64 === locator.Ecd64Offset;
+                mainHeader.ParseEcd64(inBuffer, locator.Ecd64Offset);
+            }
         }
-        if (readNow) readEntries();
+
+        // Support for multi-disk files is not implemented
+        if (mainHeader.cdDisk !== mainHeader.ThisDisk) {
+            throw new Error(Utils.Errors.NOSUPPORT_MULTIDISK);
+        }
+
+        if (mainHeader.commentLength) {
+            _comment = inBuffer.slice(endOffset + Utils.Constants.ENDHDR);
+        }
     }
 
     function sortEntries() {
@@ -178,7 +182,7 @@ module.exports = function (/*Buffer|null*/ inBuffer, /** object */ options) {
             }
             entryList.push(entry);
             entryTable[entry.entryName] = entry;
-            mainHeader.totalEntries = entryList.length;
+            mainHeader.totalEntries = mainHeader.diskEntries = entryList.length;
         },
 
         /**
@@ -202,7 +206,7 @@ module.exports = function (/*Buffer|null*/ inBuffer, /** object */ options) {
             }
             entryList.splice(entryList.indexOf(entry), 1);
             delete entryTable[entryName];
-            mainHeader.totalEntries = entryList.length;
+            mainHeader.totalEntries = mainHeader.diskEntries = entryList.length;
         },
 
         /**
@@ -254,20 +258,14 @@ module.exports = function (/*Buffer|null*/ inBuffer, /** object */ options) {
                 const compressedData = entry.getCompressedData();
                 // 1. construct data header
                 entry.header.offset = dindex;
-                const dataHeader = entry.header.dataHeaderToBinary();
-                const entryNameLen = entry.rawEntryName.length;
-                // 1.2. postheader - data after data header
-                const postHeader = Buffer.alloc(entryNameLen + entry.extra.length);
-                entry.rawEntryName.copy(postHeader, 0);
-                postHeader.copy(entry.extra, entryNameLen);
+                const dataHeader = entry.packLocalHeader();
 
-                // 2. offsets
-                const dataLength = dataHeader.length + postHeader.length + compressedData.length;
+                // 2. calculate new offset
+                const dataLength = dataHeader.length + compressedData.length;
                 dindex += dataLength;
 
                 // 3. store values in sequence
                 dataBlock.push(dataHeader);
-                dataBlock.push(postHeader);
                 dataBlock.push(compressedData);
 
                 // 4. construct entry header
@@ -286,22 +284,16 @@ module.exports = function (/*Buffer|null*/ inBuffer, /** object */ options) {
             const outBuffer = Buffer.alloc(totalSize);
             // write data blocks
             for (const content of dataBlock) {
-                content.copy(outBuffer, dindex);
-                dindex += content.length;
+                dindex += content.copy(outBuffer, dindex);
             }
 
             // write central directory entries
             for (const content of entryHeaders) {
-                content.copy(outBuffer, dindex);
-                dindex += content.length;
+                dindex += content.copy(outBuffer, dindex);
             }
 
             // write main header
-            const mh = mainHeader.toBinary();
-            if (_comment) {
-                _comment.copy(mh, Utils.Constants.ENDHDR); // add zip file comment
-            }
-            mh.copy(outBuffer, dindex);
+            mainHeader.toBinary(_comment).copy(outBuffer, dindex);
 
             return outBuffer;
         },
@@ -329,20 +321,22 @@ module.exports = function (/*Buffer|null*/ inBuffer, /** object */ options) {
                         entry.getCompressedDataAsync(function (compressedData) {
                             if (onItemEnd) onItemEnd(name);
 
+                            // 1. construct data header
                             entry.header.offset = dindex;
-                            // data header
-                            const dataHeader = entry.header.dataHeaderToBinary();
-                            const postHeader = Buffer.alloc(name.length, name);
-                            const dataLength = dataHeader.length + postHeader.length + compressedData.length;
+                            const dataHeader = entry.packLocalHeader();
 
+                            // 2. calculate new offset
+                            const dataLength = dataHeader.length + compressedData.length;
                             dindex += dataLength;
 
+                            // 3. store values in sequence
                             dataBlock.push(dataHeader);
-                            dataBlock.push(postHeader);
                             dataBlock.push(compressedData);
 
+                            // 4. construct entry header
                             const entryHeader = entry.packHeader();
                             entryHeaders.push(entryHeader);
+                            // 5. update main header
                             mainHeader.size += entryHeader.length;
                             totalSize += dataLength + entryHeader.length;
 
@@ -356,20 +350,14 @@ module.exports = function (/*Buffer|null*/ inBuffer, /** object */ options) {
                         dindex = 0;
                         const outBuffer = Buffer.alloc(totalSize);
                         dataBlock.forEach(function (content) {
-                            content.copy(outBuffer, dindex); // write data blocks
-                            dindex += content.length;
+                            dindex += content.copy(outBuffer, dindex); // write data blocks
                         });
                         entryHeaders.forEach(function (content) {
-                            content.copy(outBuffer, dindex); // write central directory entries
-                            dindex += content.length;
+                            dindex += content.copy(outBuffer, dindex); // write central directory entries
                         });
 
-                        const mh = mainHeader.toBinary();
-                        if (_comment) {
-                            _comment.copy(mh, Utils.Constants.ENDHDR); // add zip file comment
-                        }
-
-                        mh.copy(outBuffer, dindex); // write main header
+                        // write main header
+                        mainHeader.toBinary(_comment).copy(outBuffer, dindex);
 
                         onSuccess(outBuffer);
                     }
