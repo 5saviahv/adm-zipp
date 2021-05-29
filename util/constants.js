@@ -41,30 +41,34 @@ module.exports = {
     /* The entries in the end of central directory */
     ENDHDR           : 22, // END header size
     ENDSIG           : 0x06054b50, // "PK\005\006"
+    ENDDSK           : 4, // Disk number (not supported)
+    ENDCDR           : 6, // number of the disk with the start of the central directory (not supported)
     ENDSUB           : 8, // number of entries on this disk
     ENDTOT           : 10, // total number of entries
     ENDSIZ           : 12, // central directory size in bytes
     ENDOFF           : 16, // offset of first CEN header
     ENDCOM           : 20, // zip file comment length
 
-    END64HDR         : 20, // zip64 END header size
-    END64SIG         : 0x07064b50, // zip64 Locator signature, "PK\006\007"
-    END64START       : 4, // number of the disk with the start of the zip64
-    END64OFF         : 8, // relative offset of the zip64 end of central directory
-    END64NUMDISKS    : 16, // total number of disks
+    // 4.3.15 - Zip64 end of central directory locator
+    ZIP64LOCHDR      : 20, // zip64 END header size
+    ZIP64LOCSIG      : 0x07064b50, // zip64 Locator signature, "PK\006\007"
+    ZIP64LOCCDR      : 4, // number of the disk with the start of the zip64 end of central directory
+    ZIP64LOCOFF      : 8, // relative offset of the zip64 end of central directory
+    ZIP64LOCDISKS    : 16, // total number of disks
 
-    ZIP64SIG         : 0x06064b50, // zip64 signature, "PK\006\006"
-    ZIP64HDR         : 56, // zip64 record minimum size
-    ZIP64LEAD        : 12, // leading bytes at the start of the record, not counted by the value stored in ZIP64SIZE
-    ZIP64SIZE        : 4, // zip64 size of the central directory record
-    ZIP64VEM         : 12, // zip64 version made by
-    ZIP64VER         : 14, // zip64 version needed to extract
-    ZIP64DSK         : 16, // zip64 number of this disk
-    ZIP64DSKDIR      : 20, // number of the disk with the start of the record directory
-    ZIP64SUB         : 24, // number of entries on this disk
-    ZIP64TOT         : 32, // total number of entries
-    ZIP64SIZB        : 40, // zip64 central directory size in bytes
-    ZIP64OFF         : 48, // offset of start of central directory with respect to the starting disk number
+    // 4.3.14 - Zip64 end of central directory record
+    ZIP64ENDSIG      : 0x06064b50, // zip64 signature, "PK\006\006"
+    ZIP64ENDHDR      : 56, // zip64 record minimum size
+    ZIP64ENDLEAD     : 12, // leading bytes at the start of the record, not counted by the value stored in ZIP64SIZE
+    ZIP64ENDSIZE     : 4, // zip64 size of the central directory record
+    ZIP64ENDVEM      : 12, // zip64 version made by
+    ZIP64ENDVER      : 14, // zip64 version needed to extract
+    ZIP64ENDDSK      : 16, // zip64 number of this disk
+    ZIP64ENDDSKDIR   : 20, // number of the disk with the start of the record directory
+    ZIP64ENDSUB      : 24, // number of entries on this disk
+    ZIP64ENDTOT      : 32, // total number of entries
+    ZIP64ENDSIZ      : 40, // zip64 central directory size in bytes
+    ZIP64ENDOFF      : 48, // offset of start of central directory with respect to the starting disk number
     ZIP64EXTRA       : 56, // extensible data sector
 
     /* Compression methods */
@@ -133,6 +137,7 @@ module.exports = {
     ID_IBM2          : 0x0066,
     ID_POSZIP        : 0x4690,
 
+    // Zip64 - Extra field
     EF_ZIP64_OR_32   : 0xffffffff,
     EF_ZIP64_OR_16   : 0xffff,
     EF_ZIP64_SUNCOMP : 0,

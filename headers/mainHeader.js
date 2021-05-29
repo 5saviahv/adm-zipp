@@ -54,7 +54,7 @@ module.exports = function () {
             // or be 56+ bytes and start with "PK 06 06" for Zip64
             if (
                 (data.length !== Constants.ENDHDR || data.readUInt32LE(0) !== Constants.ENDSIG) &&
-                (data.length < Constants.ZIP64HDR || data.readUInt32LE(0) !== Constants.ZIP64SIG)
+                (data.length < Constants.ZIP64ENDHDR || data.readUInt32LE(0) !== Constants.ZIP64ENDSIG)
             ) {
                 throw new Error(Utils.Errors.INVALID_END);
             }
@@ -72,13 +72,13 @@ module.exports = function () {
                 _commentLength = data.readUInt16LE(Constants.ENDCOM);
             } else {
                 // number of entries on this volume
-                _volumeEntries = Utils.readBigUInt64LE(data, Constants.ZIP64SUB);
+                _volumeEntries = Utils.readUInt64LE(data, Constants.ZIP64ENDSUB);
                 // total number of entries
-                _totalEntries = Utils.readBigUInt64LE(data, Constants.ZIP64TOT);
+                _totalEntries = Utils.readUInt64LE(data, Constants.ZIP64ENDTOT);
                 // central directory size in bytes
-                _size = Utils.readBigUInt64LE(data, Constants.ZIP64SIZ);
+                _size = Utils.readUInt64LE(data, Constants.ZIP64ENDSIZ);
                 // offset of first CEN header
-                _offset = Utils.readBigUInt64LE(data, Constants.ZIP64OFF);
+                _offset = Utils.readUInt64LE(data, Constants.ZIP64ENDOFF);
 
                 _commentLength = 0;
             }

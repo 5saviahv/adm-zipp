@@ -80,20 +80,20 @@ module.exports = function (/*Buffer|null*/ inBuffer, /** object */ options) {
                 commentEnd = i;
                 endStart = i + Utils.Constants.ENDHDR;
                 // We already found a regular signature, let's look just a bit further to check if there's any zip64 signature
-                n = i - Utils.Constants.END64HDR;
+                n = i - Utils.Constants.ZIP64LOCHDR;
                 continue;
             }
 
-            if (inBuffer.readUInt32LE(i) === Utils.Constants.END64SIG) {
+            if (inBuffer.readUInt32LE(i) === Utils.Constants.ZIP64LOCSIG) {
                 // Found a zip64 signature, let's continue reading the whole zip64 record
                 n = max;
                 continue;
             }
 
-            if (inBuffer.readUInt32LE(i) === Utils.Constants.ZIP64SIG) {
+            if (inBuffer.readUInt32LE(i) === Utils.Constants.ZIP64ENDSIG) {
                 // Found the zip64 record, let's determine it's size
                 endOffset = i;
-                endStart = i + Utils.readBigUInt64LE(inBuffer, i + Utils.Constants.ZIP64SIZE) + Utils.Constants.ZIP64LEAD;
+                endStart = i + Utils.readUInt64LE(inBuffer, i + Utils.Constants.ZIP64ENDSIZE) + Utils.Constants.ZIP64ENDLEAD;
                 break;
             }
         }

@@ -3,6 +3,47 @@ const pth = require("path");
 const Constants = require("./constants");
 const isWin = typeof process === "object" && "win32" === process.platform;
 
+// Not truely 64-bit versions, just 48-bit versions
+// javascript numbers can handle max 52-bit after that you have to switch to BigInt's
+// BigInt's require at least node 10.20 or newer
+function readUInt64LE(/*Buffer*/ inbuf, /*int*/ index) {
+    if (!Buffer.isBuffer(inbuf)) {
+        throw new TypeError("inbuf has to be Buffer type");
+    }
+    if (index < 0 || index + 8 > inbuf.length) {
+        throw new RangeError("read position out of range");
+    }
+    if (typeof Buffer.readBigInt64LE !== "undefined") {
+        return inbuf.writeBigInt64LE(value, index);
+    } else {
+        // Not truely 64-bit version, just 48-bit version
+        const ret = inbuf.readUIntLE(value, index, 6);
+        const zero = inbuf.readUIntLE(value, index + 6, 2);
+        if (zero !== 0) {
+            throw new RangeError("64 bit value out of Number range");
+        }
+        return ret;
+    }
+}
+
+function writeUInt64LE(/*Buffer*/ inbuf, /*number*/ position, /*Number, BigInt*/ value) {
+    if (!Buffer.isBuffer(inbuf)) {
+        throw new TypeError("inbuf has to be Buffer type");
+    }
+    if (position < 0 || position + 8 > inbuf.length) {
+        throw new RangeError("write position out of range");
+    }
+
+    if (typeof Buffer.writeBigInt64LE !== "undefined") {
+        return inbuf.writeBigInt64LE(value, position);
+    } else {
+        // Not truely 64-bit version, just 48-bit version
+        inbuf.fill(0, position, position + 8);
+        inbuf.writeUIntLE(value, position, 6);
+        return position + 8;
+    }
+}
+
 module.exports = (function () {
     const crcTable = [];
     const PATH_SEPARATOR = pth.sep;
@@ -51,13 +92,6 @@ module.exports = (function () {
             }
         });
         return files;
-    }
-
-    function readBigUInt64LE(/*Buffer*/ buffer, /*int*/ index) {
-        var slice = Buffer.from(buffer.slice(index, index + 8));
-        slice.swap64();
-
-        return parseInt(`0x${slice.toString("hex")}`);
     }
 
     return {
@@ -213,6 +247,7 @@ module.exports = (function () {
 
         isWin, // Do we have windows system
 
-        readBigUInt64LE
+        readUInt64LE,
+        writeUInt64LE
     };
 })();
