@@ -203,9 +203,9 @@ mainHeader.prototype.toBinary = function (comment, options) {
         // Disk where Central Directory begins
         b.writeUInt16LE(this.cdDisk, offset + Constants.ENDCDR);
         // number of entries on this volume
-        b.writeUInt16LE(self.diskEntries, offset + Constants.ENDSUB);
+        b.writeUInt16LE(Math.min(Constants.ZIP64_OR_16, self.diskEntries), offset + Constants.ENDSUB);
         // total number of entries
-        b.writeUInt16LE(self.totalEntries, offset + Constants.ENDTOT);
+        b.writeUInt16LE(Math.min(Constants.ZIP64_OR_16, self.totalEntries), offset + Constants.ENDTOT);
         // central directory size in bytes
         b.writeUInt32LE(maskme(Constants.ZIP64_OR_32, self.size), offset + Constants.ENDSIZ);
         // offset of first CEN header

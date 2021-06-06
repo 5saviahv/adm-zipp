@@ -151,6 +151,30 @@ describe("adm-zip", () => {
         const data = zip.readAsText(zipEntries[0].entryName);
         expect(data).to.equal("This small file is in ZIP64 format.\n");
     });
+
+    it("write zip64 file - add files", function () {
+        this.timeout(7500);
+        const zip = new Zip({ noSort: true });
+
+        const content = "test";
+        const comment = "";
+        const list = [];
+
+        // skip sorting - value "true"
+        for (let idx = 0; idx < 0x10010; idx++) {
+            const name = idx + ".txt";
+            zip.addFile(name, content, comment);
+            list.push(name);
+        }
+        zip.toBuffer();
+
+        const zipEntries = zip.getEntries();
+        expect(zipEntries.length).to.equal(0x10010);
+
+        // zipEntries.forEach((e) => zip.extractEntryTo(e, destination, true, true));
+        // const files = walk(destination);
+        // expect(files.sort()).to.deep.equal(list.map((c) => pth.normalize(pth.join(destination, c))).sort());
+    });
 });
 
 function walk(dir) {
