@@ -5,6 +5,7 @@ const pth = require("path");
 const fs = require("fs");
 const rimraf = require("rimraf");
 const Utils = require("../../util/utils");
+process.env.TZ = "UTC";
 
 describe("adm-zip.js - methods handling local files", () => {
     const destination = "./test/xxx";

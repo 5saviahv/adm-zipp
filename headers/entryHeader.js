@@ -1,13 +1,74 @@
 var Utils = require("../util"),
     Constants = Utils.Constants;
 
+class ZipDate {
+    constructor(val) {
+        this.value = val;
+    }
+
+    set value(val) {
+        val = val == null ? new Date() : val instanceof Date ? val : new Date(val);
+        this._value = isNaN(val) ? new Date() : val;
+    }
+    get value() {
+        return this._value;
+    }
+
+    get valid() {
+        return !isNaN(this._value);
+    }
+
+    set DOS_time(set) {
+        this._value = new Date(
+            ((set >> 25) & 0x7f) + 1980,
+            Math.max(((set >> 21) & 0x0f) - 1, 0),
+            Math.max((set >> 16) & 0x1f, 1),
+            (set >> 11) & 0x1f,
+            (set >> 5) & 0x3f,
+            (set & 0x1f) << 1
+        );
+    }
+    get DOS_time() {
+        let val = 0;
+        if (this._value.getFullYear() > 1979) {
+            val =
+                (((this._value.getFullYear() - 1980) & 0x7f) << 25) | // b09-16 years from 1980
+                ((this._value.getMonth() + 1) << 21) | // b05-08 month
+                (this._value.getDate() << 16) | // b00-04 hour
+                // 2 bytes time
+                (this._value.getHours() << 11) | // b11-15 hour
+                (this._value.getMinutes() << 5) | // b05-10 minute
+                (this._value.getSeconds() >> 1); // b00-04 seconds divided by 2;
+        }
+        return val;
+    }
+
+    set UNIX_time(set) {
+        this._value = set * 1000;
+    }
+    get UNIX_time() {
+        return (this._value / 1000) >>> 0;
+    }
+
+    toJSON() {
+        return { active: this._active, value: this._value };
+    }
+
+    toString() {
+        return JSON.stringify(this.toJSON());
+    }
+
+    valueOf() {
+        return this._value.valueOf();
+    }
+}
+
 /* The central directory file header */
 module.exports = function () {
     var _verMade = 20, // v2.0
         _version = 10, // v1.0
         _flags = 0,
         _method = 0,
-        _time = 0,
         _crc = 0,
         _compressedSize = 0,
         _size = 0,
@@ -19,27 +80,26 @@ module.exports = function () {
         _attr = 0,
         _offset = 0;
 
+    // The modified timestamp
+    const mTime = new ZipDate();
+
     _verMade |= Utils.isWin ? 0x0a00 : 0x0300;
 
     // Set EFS flag since filename and comment fields are all by default encoded using UTF-8.
     // Without it file names may be corrupted for other apps when file names use unicode chars
     _flags |= Constants.FLG_EFS;
 
-    var _localHeader = {};
-
-    function setTime(val) {
-        val = new Date(val);
-        _time =
-            (((val.getFullYear() - 1980) & 0x7f) << 25) | // b09-16 years from 1980
-            ((val.getMonth() + 1) << 21) | // b05-08 month
-            (val.getDate() << 16) | // b00-04 hour
-            // 2 bytes time
-            (val.getHours() << 11) | // b11-15 hour
-            (val.getMinutes() << 5) | // b05-10 minute
-            (val.getSeconds() >> 1); // b00-04 seconds divided by 2
-    }
-
-    setTime(+new Date());
+    const _localHeader = {
+        version: 0,
+        flags: 0,
+        method: 0,
+        time: new ZipDate(),
+        crc: 0,
+        compressedSize: 0,
+        size: 0,
+        fnameLen: 0,
+        extraLen: 0
+    };
 
     return {
         get made() {
@@ -89,13 +149,13 @@ module.exports = function () {
         },
 
         get time() {
-            return new Date(((_time >> 25) & 0x7f) + 1980, ((_time >> 21) & 0x0f) - 1, (_time >> 16) & 0x1f, (_time >> 11) & 0x1f, (_time >> 5) & 0x3f, (_time & 0x1f) << 1);
+            return mTime.value;
         },
         set time(val) {
-            setTime(val);
+            mTime.value = val;
         },
         get timeHighByte() {
-            return (_time >>> 8) & 0xff;
+            return (mTime.DOS_time >>> 8) & 0xff;
         },
         get crc() {
             return _crc;
@@ -162,7 +222,7 @@ module.exports = function () {
 
         // get Unix file permissions
         get fileAttr() {
-            return _attr ? (((_attr >>> 0) | 0) >> 16) & 0xfff : 0;
+            return _attr >>> 16;
         },
 
         get offset() {
@@ -189,31 +249,30 @@ module.exports = function () {
         },
 
         loadLocalHeaderFromBinary: function (/*Buffer*/ input) {
-            var data = input.slice(_offset, _offset + Constants.LOCHDR);
+            const data = input.slice(_offset, _offset + Constants.LOCHDR);
             // 30 bytes and should start with "PK\003\004"
             if (data.readUInt32LE(0) !== Constants.LOCSIG) {
                 throw new Error(Utils.Errors.INVALID_LOC);
             }
-            _localHeader = {
-                // version needed to extract
-                version: data.readUInt16LE(Constants.LOCVER),
-                // general purpose bit flag
-                flags: data.readUInt16LE(Constants.LOCFLG),
-                // compression method
-                method: data.readUInt16LE(Constants.LOCHOW),
-                // modification time (2 bytes time, 2 bytes date)
-                time: data.readUInt32LE(Constants.LOCTIM),
-                // uncompressed file crc-32 value
-                crc: data.readUInt32LE(Constants.LOCCRC),
-                // compressed size
-                compressedSize: data.readUInt32LE(Constants.LOCSIZ),
-                // uncompressed size
-                size: data.readUInt32LE(Constants.LOCLEN),
-                // filename length
-                fnameLen: data.readUInt16LE(Constants.LOCNAM),
-                // extra field length
-                extraLen: data.readUInt16LE(Constants.LOCEXT)
-            };
+
+            // version needed to extract
+            _localHeader.version = data.readUInt16LE(Constants.LOCVER);
+            // general purpose bit flag
+            _localHeader.flags = data.readUInt16LE(Constants.LOCFLG);
+            // compression method
+            _localHeader.method = data.readUInt16LE(Constants.LOCHOW);
+            // modification time (2 bytes time, 2 bytes date)
+            _localHeader.time = data.readUInt32LE(Constants.LOCTIM);
+            // uncompressed file crc-32 value
+            _localHeader.crc = data.readUInt32LE(Constants.LOCCRC);
+            // compressed size
+            _localHeader.compressedSize = data.readUInt32LE(Constants.LOCSIZ);
+            // uncompressed size
+            _localHeader.size = data.readUInt32LE(Constants.LOCLEN);
+            // filename length
+            _localHeader.fnameLen = data.readUInt16LE(Constants.LOCNAM);
+            // extra field length
+            _localHeader.extraLen = data.readUInt16LE(Constants.LOCEXT);
         },
 
         loadFromBinary: function (/*Buffer*/ data) {
@@ -230,7 +289,7 @@ module.exports = function () {
             // compression method
             _method = data.readUInt16LE(Constants.CENHOW);
             // modification time (2 bytes time, 2 bytes date)
-            _time = data.readUInt32LE(Constants.CENTIM);
+            mTime.DOS_time = data.readUInt32LE(Constants.CENTIM);
             // uncompressed file crc-32 value
             _crc = data.readUInt32LE(Constants.CENCRC);
             // compressed size
@@ -265,7 +324,7 @@ module.exports = function () {
             // compression method
             data.writeUInt16LE(_method, Constants.LOCHOW);
             // modification time (2 bytes time, 2 bytes date)
-            data.writeUInt32LE(_time, Constants.LOCTIM);
+            data.writeUInt32LE(mTime.DOS_time, Constants.LOCTIM);
             // uncompressed file crc-32 value
             data.writeUInt32LE(_crc, Constants.LOCCRC);
             // compressed size
@@ -293,7 +352,7 @@ module.exports = function () {
             // compression method
             data.writeUInt16LE(_method, Constants.CENHOW);
             // modification time (2 bytes time, 2 bytes date)
-            data.writeUInt32LE(_time, Constants.CENTIM);
+            data.writeUInt32LE(mTime.DOS_time, Constants.CENTIM);
             // uncompressed file crc-32 value
             data.writeUInt32LE(_crc, Constants.CENCRC);
             // compressed size
