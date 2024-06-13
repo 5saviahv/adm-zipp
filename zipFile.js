@@ -102,7 +102,7 @@ module.exports = function (/*Buffer|null*/ inBuffer, /** object */ options) {
             }
         }
 
-        if (!~endOffset) throw new Error(Utils.Errors.INVALID_FORMAT);
+        if (endOffset < 0) throw new Error(Utils.Errors.INVALID_FORMAT);
 
         mainHeader.loadFromBinary(inBuffer.slice(endOffset, endStart));
         if (mainHeader.commentLength) {
