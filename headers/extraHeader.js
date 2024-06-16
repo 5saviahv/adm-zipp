@@ -19,7 +19,7 @@ const ID_ZIP64_OFFSETS = {
 function ExtraHeader() {
     this._raw = new Map();
     Object.defineProperty(this, "length", {
-        get() {
+        get: function () {
             let length = 0;
             for (const data of this._raw.values()) {
                 length += data.length + 4;
@@ -28,7 +28,7 @@ function ExtraHeader() {
         }
     });
     Object.defineProperty(this, "size", {
-        get() {
+        get: function () {
             return this._raw.size;
         }
     });
@@ -150,3 +150,5 @@ ExtraHeader.prototype.SetZip64 = function (zip64) {
         this.delete(Constants.ID_ZIP64);
     }
 };
+
+module.export = ExtraHeader;
