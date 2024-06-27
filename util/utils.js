@@ -332,5 +332,35 @@ Utils.fromDate2DOS = function (val) {
     return (date << 16) | time;
 };
 
+// Read UINT32 with Flag
+Utils.readUInt32LEF = function readUInt32LEF(buf, offset) {
+    const val = Utils.toBuffer(buf).readUInt32LE(offset);
+    return val === 0xffffffff ? -1 : val;
+};
+
+// Read UINT16 with Flag
+Utils.readUInt16LEF = function readUInt16LEF(buf, offset) {
+    const val = Utils.toBuffer(buf).readUInt16LE(offset);
+    return val === 0xffff ? -1 : val;
+};
+
+Utils.writeUInt64LE = function writeUInt64LE(buffer, value, offset) {
+    if (Number.isSafeInteger(value)) {
+        const [low, high] = [value >>> 0, (value / 2 ** 32) >>> 0];
+        buffer = Utils.toBuffer(buffer);
+        offset = buffer.writeUInt32LE(low, offset);
+        return buffer.writeUInt32LE(high, offset);
+    } else {
+        throw new Error(`Invalid Number value ${value}`);
+    }
+};
+
+Utils.readUInt64LE = function readUInt64LE(buffer, offset) {
+    buffer = Utils.toBuffer(buffer);
+    const [low, high] = [buffer.readUInt32LE(offset), buffer.readUInt32LE(offset + 4)];
+    if (high >> 21 !== 0) throw new Error("Value is too high for javascript Number");
+    return high * 2 ** 32 + low;
+};
+
 Utils.isWin = isWin; // Do we have windows system
 Utils.crcTable = crcTable;

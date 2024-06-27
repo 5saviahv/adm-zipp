@@ -185,10 +185,6 @@ module.exports = function (/** object */ options, /*Buffer*/ input) {
         }
     }
 
-    function readUInt64LE(buffer, offset) {
-        return (buffer.readUInt32LE(offset + 4) << 4) + buffer.readUInt32LE(offset);
-    }
-
     function parseExtra(data) {
         try {
             var offset = 0;
@@ -201,41 +197,11 @@ module.exports = function (/** object */ options, /*Buffer*/ input) {
                 part = data.slice(offset, offset + size);
                 offset += size;
                 if (Constants.ID_ZIP64 === signature) {
-                    parseZip64ExtendedInformation(part);
+                    _centralHeader.extra_putZip64ExtInfo(part);
                 }
             }
         } catch (error) {
             throw Utils.Errors.EXTRA_FIELD_PARSE_ERROR();
-        }
-    }
-
-    //Override header field values with values from the ZIP64 extra field
-    function parseZip64ExtendedInformation(data) {
-        var size, compressedSize, offset, diskNumStart;
-
-        if (data.length >= Constants.EF_ZIP64_SCOMP) {
-            size = readUInt64LE(data, Constants.EF_ZIP64_SUNCOMP);
-            if (_centralHeader.size === Constants.EF_ZIP64_OR_32) {
-                _centralHeader.size = size;
-            }
-        }
-        if (data.length >= Constants.EF_ZIP64_RHO) {
-            compressedSize = readUInt64LE(data, Constants.EF_ZIP64_SCOMP);
-            if (_centralHeader.compressedSize === Constants.EF_ZIP64_OR_32) {
-                _centralHeader.compressedSize = compressedSize;
-            }
-        }
-        if (data.length >= Constants.EF_ZIP64_DSN) {
-            offset = readUInt64LE(data, Constants.EF_ZIP64_RHO);
-            if (_centralHeader.offset === Constants.EF_ZIP64_OR_32) {
-                _centralHeader.offset = offset;
-            }
-        }
-        if (data.length >= Constants.EF_ZIP64_DSN + 4) {
-            diskNumStart = data.readUInt32LE(Constants.EF_ZIP64_DSN);
-            if (_centralHeader.diskNumStart === Constants.EF_ZIP64_OR_16) {
-                _centralHeader.diskNumStart = diskNumStart;
-            }
         }
     }
 
@@ -268,6 +234,13 @@ module.exports = function (/** object */ options, /*Buffer*/ input) {
             _extra = val;
             _centralHeader.extraLength = val.length;
             parseExtra(val);
+        },
+
+        get extralocal() {
+            if (_centralHeader.version == null) {
+                _extralocal = _centralHeader.loadLocalHeaderFromBinary(input);
+            }
+            return _extralocal;
         },
 
         get comment() {
@@ -364,7 +337,7 @@ module.exports = function (/** object */ options, /*Buffer*/ input) {
         packLocalHeader: function () {
             let addpos = 0;
             _centralHeader.flags_efs = this.efs;
-            _centralHeader.extraLocalLength = _extralocal.length;
+            _centralHeader.extraLocalLength = this.extralocal.length;
             // 1. construct local header Buffer
             const localHeaderBuf = _centralHeader.localHeaderToBinary();
             // 2. localHeader - crate header buffer
@@ -376,8 +349,8 @@ module.exports = function (/** object */ options, /*Buffer*/ input) {
             _entryName.copy(localHeader, addpos);
             addpos += _entryName.length;
             // 2.3 add extra field
-            _extralocal.copy(localHeader, addpos);
-            addpos += _extralocal.length;
+            this.extralocal.copy(localHeader, addpos);
+            addpos += this.extralocal.length;
 
             return localHeader;
         },

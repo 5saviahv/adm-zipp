@@ -30,6 +30,14 @@ module.exports = function () {
         extraLen: 0
     };
 
+    const _zip64vals = {
+        active: false,
+        size: 0,
+        compressedSize: 0,
+        offset: 0,
+        diskStart: 0
+    };
+
     // casting
     // >>> removes sign and converts number 32-bit like they would be represented in memory (-1 becomes 0xffffffff)
     const int32 = (val) => val & 0xffffffff; // keep sign but make value 32-bit
@@ -122,6 +130,15 @@ module.exports = function () {
         get timeHighByte() {
             return uint8(_time >>> 8);
         },
+
+        get zip64() {
+            return _zip64vals.active || _size === -1 || _compressedSize === -1 || _offset === -1 || _diskStart === -1;
+        },
+
+        set zip64(val) {
+            _zip64vals.active = !!val;
+        },
+
         get crc() {
             return _crc;
         },
@@ -130,17 +147,43 @@ module.exports = function () {
         },
 
         get compressedSize() {
+            return _compressedSize > -1 ? _compressedSize : _zip64vals.compressedSize;
+        },
+
+        set compressedSize(val) {
+            if (val > 0xfffffffe) {
+                _zip64vals.compressedSize = val;
+                _compressedSize = -1;
+            } else {
+                _zip64vals.compressedSize = _compressedSize = noneg(val);
+            }
+        },
+
+        get zip32_compressedSize() {
             return _compressedSize;
         },
-        set compressedSize(val) {
-            _compressedSize = noneg(val);
+        set zip32_compressedSize(val) {
+            _compressedSize = val;
         },
 
         get size() {
-            return _size;
+            return _size > -1 ? _size : _zip64vals.size;
         },
         set size(val) {
-            _size = noneg(val);
+            if (val > 0xfffffffe) {
+                _zip64vals.size = val;
+                _size = -1;
+            } else {
+                _zip64vals.size = _size = noneg(val);
+            }
+        },
+
+        get zip32_size() {
+            return _size > -1 ? _size : _zip64vals.size;
+        },
+
+        set zip32_size(val) {
+            _size = val;
         },
 
         get fileNameLength() {
@@ -172,10 +215,23 @@ module.exports = function () {
         },
 
         get diskNumStart() {
+            return _diskStart > -1 ? _diskStart : _zip64vals.diskStart;
+        },
+
+        set diskNumStart(val) {
+            if (val > 0xfffffffe) {
+                _zip64vals.diskStart = val;
+                _diskStart = -1;
+            } else {
+                _zip64vals.diskStart = _diskStart = noneg(val);
+            }
+        },
+
+        get zip32_diskNumStart() {
             return _diskStart;
         },
-        set diskNumStart(val) {
-            _diskStart = noneg(val);
+        set zip32_diskNumStart(val) {
+            _diskStart = val;
         },
 
         get inAttr() {
@@ -198,10 +254,22 @@ module.exports = function () {
         },
 
         get offset() {
-            return _offset;
+            return _offset > -1 ? _offset : _zip64vals.offset;
         },
         set offset(val) {
-            _offset = noneg(val);
+            if (val > 0xfffffffe) {
+                _zip64vals.offset = val;
+                _offset = -1;
+            } else {
+                _zip64vals.offset = _offset = noneg(val);
+            }
+        },
+
+        get zip32_offset() {
+            return _offset;
+        },
+        set zip32_offset(val) {
+            _offset = val;
         },
 
         get encrypted() {
@@ -218,6 +286,34 @@ module.exports = function () {
 
         get localHeader() {
             return _localHeader;
+        },
+
+        extra_getZip64ExtInfo: function (central = false) {
+            const length = Constants.EF_ZIP64_RHO + (!central ? 0 : 8 + (_diskStart == -1 ? 4 : 0));
+            const elems = Math.ceil(length / 8),
+                data = Buffer.alloc(length);
+            let offset;
+            // values
+            if (elems > 0) offset = Utils.writeUInt64LE(data, _zip64vals.size, 0);
+            if (elems > 1) offset = Utils.writeUInt64LE(data, _zip64vals.compressedSize, offset);
+            if (elems > 2) offset = Utils.writeUInt64LE(data, _zip64vals.offset, offset);
+            if (elems > 3) offset = data.writeUInt32LE(_zip64vals.diskStart, offset);
+        },
+
+        extra_putZip64ExtInfo: function (data) {
+            // data is without header
+            if (data.length >= Constants.EF_ZIP64_SCOMP) {
+                this.size = Utils.readUInt64LE(data, Constants.EF_ZIP64_SUNCOMP);
+            }
+            if (data.length >= Constants.EF_ZIP64_RHO) {
+                this.compressedSize = Utils.readUInt64LE(data, Constants.EF_ZIP64_SCOMP);
+            }
+            if (data.length >= Constants.EF_ZIP64_DSN) {
+                this.offset = Utils.readUInt64LE(data, Constants.EF_ZIP64_RHO);
+            }
+            if (data.length >= Constants.EF_ZIP64_DSN + 4) {
+                this.diskNumStart = data.readUInt32LE(Constants.EF_ZIP64_DSN);
+            }
         },
 
         loadLocalHeaderFromBinary: function (/*Buffer*/ input) {
@@ -238,9 +334,9 @@ module.exports = function () {
             // uncompressed file crc-32 valu
             _localHeader.crc = data.readUInt32LE(Constants.LOCCRC);
             // compressed size
-            _localHeader.compressedSize = data.readUInt32LE(Constants.LOCSIZ);
+            _localHeader.compressedSize = Utils.readUInt32LEF(data, Constants.LOCSIZ);
             // uncompressed size
-            _localHeader.size = data.readUInt32LE(Constants.LOCLEN);
+            _localHeader.size = Utils.readUInt32LEF(data, Constants.LOCLEN);
             // filename length
             _localHeader.fnameLen = data.readUInt16LE(Constants.LOCNAM);
             // extra field length
@@ -271,9 +367,9 @@ module.exports = function () {
             // uncompressed file crc-32 value
             _crc = data.readUInt32LE(Constants.CENCRC);
             // compressed size
-            _compressedSize = data.readUInt32LE(Constants.CENSIZ);
+            _compressedSize = Utils.readUInt32LEF(data, Constants.CENSIZ);
             // uncompressed size
-            _size = data.readUInt32LE(Constants.CENLEN);
+            _size = Utils.readUInt32LEF(data, Constants.CENLEN);
             // filename length
             _fnameLen = data.readUInt16LE(Constants.CENNAM);
             // extra field length
@@ -281,13 +377,13 @@ module.exports = function () {
             // file comment length
             _comLen = data.readUInt16LE(Constants.CENCOM);
             // volume number start
-            _diskStart = data.readUInt16LE(Constants.CENDSK);
+            _diskStart = Utils.readUInt16LEF(data, Constants.CENDSK);
             // internal file attributes
             _inattr = data.readUInt16LE(Constants.CENATT);
             // external file attributes
             _attr = data.readUInt32LE(Constants.CENATX);
             // LOC header offset
-            _offset = data.readUInt32LE(Constants.CENOFF);
+            _offset = Utils.readUInt32LEF(data, Constants.CENOFF);
         },
 
         localHeaderToBinary: function () {
@@ -306,9 +402,9 @@ module.exports = function () {
             // uncompressed file crc-32 value
             data.writeUInt32LE(_crc, Constants.LOCCRC);
             // compressed size
-            data.writeUInt32LE(_compressedSize, Constants.LOCSIZ);
+            data.writeUInt32LE(uint32(_compressedSize), Constants.LOCSIZ);
             // uncompressed size
-            data.writeUInt32LE(_size, Constants.LOCLEN);
+            data.writeUInt32LE(uint32(_size), Constants.LOCLEN);
             // filename length
             data.writeUInt16LE(_fnameLen, Constants.LOCNAM);
             // extra field length
@@ -335,9 +431,9 @@ module.exports = function () {
             // uncompressed file crc-32 value
             data.writeUInt32LE(_crc, Constants.CENCRC);
             // compressed size
-            data.writeUInt32LE(_compressedSize, Constants.CENSIZ);
+            data.writeUInt32LE(uint32(_compressedSize), Constants.CENSIZ);
             // uncompressed size
-            data.writeUInt32LE(_size, Constants.CENLEN);
+            data.writeUInt32LE(uint32(_size), Constants.CENLEN);
             // filename length
             data.writeUInt16LE(_fnameLen, Constants.CENNAM);
             // extra field length
@@ -345,13 +441,13 @@ module.exports = function () {
             // file comment length
             data.writeUInt16LE(_comLen, Constants.CENCOM);
             // volume number start
-            data.writeUInt16LE(_diskStart, Constants.CENDSK);
+            data.writeUInt16LE(uint16(_diskStart), Constants.CENDSK);
             // internal file attributes
             data.writeUInt16LE(_inattr, Constants.CENATT);
             // external file attributes
             data.writeUInt32LE(_attr, Constants.CENATX);
             // LOC header offset
-            data.writeUInt32LE(_offset, Constants.CENOFF);
+            data.writeUInt32LE(uint32(_offset), Constants.CENOFF);
             return data;
         },
 

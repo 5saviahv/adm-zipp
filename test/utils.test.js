@@ -1,7 +1,19 @@
 "use strict";
 const { expect } = require("chai");
-const { crc32, canonical, sanitize, zipnamefix } = require("../util/utils");
+const { crc32, canonical, sanitize, zipnamefix, readUInt64LE, writeUInt64LE } = require("../util/utils");
 const pth = require("path");
+
+// hex formating
+const hexx = (str) =>
+    str
+        .split("")
+        .reduce((t, c, i) => {
+            t.push(c);
+            if (i % 2 == 1) t.push(" ");
+            return t;
+        }, [])
+        .join("")
+        .trim();
 
 describe("utils", () => {
     describe("crc32 function", () => {
@@ -117,6 +129,53 @@ describe("utils", () => {
 
             for (let test of tests) {
                 expect(zipnamefix(test.file)).to.equal(test.result);
+            }
+        });
+    });
+
+    describe("Buffer read/write", () => {
+        it("function readUInt64LE", () => {
+            const arr = [1, 0, 0, 0, 0, 0, 0, 0];
+
+            for (let i = 0, test = 1; i < 8; i++) {
+                const buf = Buffer.from(arr);
+
+                if (Number.isSafeInteger(test)) {
+                    expect(readUInt64LE(buf, 0)).to.equal(test);
+                } else {
+                    expect(() => readUInt64LE(buf, 0)).to.throw();
+                }
+
+                arr.unshift(0);
+                test *= 2 ** 8;
+            }
+        });
+
+        it("function writeUInt64LE", () => {
+            const tests = [
+                {
+                    nr: 0x40,
+                    result: "40 00 00 00 00 00 00 00"
+                },
+                {
+                    nr: 0x06054b50,
+                    result: "50 4b 05 06 00 00 00 00"
+                },
+                {
+                    nr: 0x1080706054b50,
+                    result: "50 4b 05 06 07 08 01 00"
+                },
+                {
+                    nr: 0x1fffffffffffff,
+                    result: "ff ff ff ff ff ff 1f 00"
+                }
+            ];
+
+            for (const { nr, result } of Array.from(tests)) {
+                const buf = Buffer.alloc(8);
+                writeUInt64LE(buf, nr, 0);
+
+                expect(result).to.equal(hexx(buf.toString("hex")));
             }
         });
     });
