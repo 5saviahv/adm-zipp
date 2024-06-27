@@ -83,15 +83,16 @@ describe("headers", () => {
     describe("central-header", () => {
         const centralHeader = require("../headers/entryHeader");
         const datestamp = [1981, 3, 1, 12, 10, 10];
-        const readBuf = Buffer.from("504b0102140014000008080045618102efbeadde0001000000020000000000000000000000000000000000000000", "hex");
+        const readBuf = Buffer.from("504b0102140014000008080045618102efbeadde0001000000020000000000000000000000000008000000000000", "hex");
 
         // comparison values for readBuf
         const readBufValues = {
-            attr: 0,
+            attr: 0x800,
             inAttr: 0,
             offset: 0,
             flags: 0x800,
             made: 20,
+            osType: 0,
             version: 20,
 
             method: 8,
@@ -133,7 +134,8 @@ describe("headers", () => {
                 commentLength: "0 bytes",
                 diskNumStart: 0,
                 inAttr: 0,
-                attr: 0,
+                exAttr: 0x0800,
+                osType: 0,
                 offset: 0,
                 centralHeaderSize: "46 bytes"
             };

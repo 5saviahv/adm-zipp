@@ -4,6 +4,7 @@ var Utils = require("../util"),
 /* The central directory file header */
 module.exports = function () {
     var _verMade = 20, // v2.0
+        _osType = 0,
         _version = 10, // v1.0
         _flags = 0,
         _method = 0,
@@ -19,7 +20,7 @@ module.exports = function () {
         _attr = 0,
         _offset = 0;
 
-    _verMade |= Utils.isWin ? 0x0a00 : 0x0300;
+    _osType = Utils.isWin ? 0x0a : 0x03;
 
     // Set EFS flag since filename and comment fields are all by default encoded using UTF-8.
     // Without it file names may be corrupted for other apps when file names use unicode chars
@@ -30,9 +31,12 @@ module.exports = function () {
     };
 
     // casting
-    const uint32 = (val) => Math.max(0, val) >>> 0;
-    const uint16 = (val) => Math.max(0, val) & 0xffff;
-    const uint8 = (val) => Math.max(0, val) & 0xff;
+    // >>> removes sign and converts number 32-bit like they would be represented in memory (-1 becomes 0xffffffff)
+    const int32 = (val) => val & 0xffffffff; // keep sign but make value 32-bit
+    const noneg = (val) => Math.max(0, val); // don't let enter negative values
+    const uint32 = (val) => val >>> 0; // keep sign but make value 32-bit
+    const uint16 = (val) => (val >>> 0) & 0xffff;
+    const uint8 = (val) => (val >>> 0) & 0xff;
 
     _time = Utils.fromDate2DOS(new Date());
 
@@ -41,14 +45,21 @@ module.exports = function () {
             return _verMade;
         },
         set made(val) {
-            _verMade = val;
+            _verMade = uint8(noneg(val));
+        },
+
+        get osType() {
+            return _osType;
+        },
+        set osType(val) {
+            _osType = uint8(noneg(val));
         },
 
         get version() {
             return _version;
         },
         set version(val) {
-            _version = val;
+            _version = uint16(noneg(val));
         },
 
         get flags() {
@@ -105,7 +116,7 @@ module.exports = function () {
             return _time;
         },
         set timeval(val) {
-            _time = uint32(val);
+            _time = uint32(noneg(val));
         },
 
         get timeHighByte() {
@@ -122,14 +133,14 @@ module.exports = function () {
             return _compressedSize;
         },
         set compressedSize(val) {
-            _compressedSize = uint32(val);
+            _compressedSize = noneg(val);
         },
 
         get size() {
             return _size;
         },
         set size(val) {
-            _size = uint32(val);
+            _size = noneg(val);
         },
 
         get fileNameLength() {
@@ -164,21 +175,21 @@ module.exports = function () {
             return _diskStart;
         },
         set diskNumStart(val) {
-            _diskStart = uint32(val);
+            _diskStart = noneg(val);
         },
 
         get inAttr() {
             return _inattr;
         },
         set inAttr(val) {
-            _inattr = uint32(val);
+            _inattr = uint16(noneg(val));
         },
 
         get attr() {
             return _attr;
         },
         set attr(val) {
-            _attr = uint32(val);
+            _attr = uint32(noneg(val));
         },
 
         // get Unix file permissions
@@ -190,7 +201,7 @@ module.exports = function () {
             return _offset;
         },
         set offset(val) {
-            _offset = uint32(val);
+            _offset = noneg(val);
         },
 
         get encrypted() {
@@ -247,7 +258,8 @@ module.exports = function () {
                 throw Utils.Errors.INVALID_CEN();
             }
             // version made by
-            _verMade = data.readUInt16LE(Constants.CENVEM);
+            _verMade = data.readUInt8(Constants.CENVEM);
+            _osType = data.readUInt8(Constants.CENVEM + 1);
             // version needed to extract
             _version = data.readUInt16LE(Constants.CENVER);
             // encrypt, decrypt flags
@@ -310,7 +322,8 @@ module.exports = function () {
             // "PK\001\002"
             data.writeUInt32LE(Constants.CENSIG, 0);
             // version made by
-            data.writeUInt16LE(_verMade, Constants.CENVEM);
+            data.writeUInt8(_verMade, Constants.CENVEM);
+            data.writeUInt8(_osType, Constants.CENVEM + 1);
             // version needed to extract
             data.writeUInt16LE(_version, Constants.CENVER);
             // encrypt, decrypt flags
@@ -347,13 +360,16 @@ module.exports = function () {
                 return nr + " bytes";
             };
 
+            const hex = (nr, len = 8) => "0x" + nr.toString(16).toUpperCase().padStart(len, "0");
+
             return {
                 made: _verMade,
+                osType: _osType,
                 version: _version,
                 flags: _flags,
                 method: Utils.methodToString(_method),
                 time: this.time,
-                crc: "0x" + _crc.toString(16).toUpperCase(),
+                crc: hex(_crc, 8),
                 compressedSize: bytes(_compressedSize),
                 size: bytes(_size),
                 fileNameLength: bytes(_fnameLen),
@@ -361,7 +377,7 @@ module.exports = function () {
                 commentLength: bytes(_comLen),
                 diskNumStart: _diskStart,
                 inAttr: _inattr,
-                attr: _attr,
+                exAttr: _attr,
                 offset: _offset,
                 centralHeaderSize: bytes(Constants.CENHDR + _fnameLen + _extraLen + _comLen)
             };
