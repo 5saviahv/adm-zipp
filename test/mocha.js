@@ -28,14 +28,14 @@ describe("adm-zip", () => {
 
     it("zip.addFile - add directory", () => {
         const zip1 = new Zip();
-        zip1.addFile("dir11/", null);
-        zip1.addFile("dir12/", undefined);
-        zip1.addFile("dir13/", "");
-        zip1.addFile("dir11/dir21/");
-        zip1.addFile("dir11/dir22/");
-        zip1.addFile("dir12/dir23/");
-        zip1.addFile("dir13/dir24/");
-        zip1.addFile("dir11/dir22/test.txt", "content");
+        zip1.addFile("dir11\\", null);
+        zip1.addFile("dir12\\", undefined);
+        zip1.addFile("dir13\\", "");
+        zip1.addFile("dir11\\dir21\\");
+        zip1.addFile("dir11\\dir22\\");
+        zip1.addFile("dir12\\dir23\\");
+        zip1.addFile("dir13\\dir24\\");
+        zip1.addFile("dir11\\dir22\\test.txt", "content");
         const zip2 = new Zip(zip1.toBuffer());
         const zip2Entries = zip2.getEntries().map((e) => e.entryName);
 
@@ -60,11 +60,14 @@ describe("adm-zip", () => {
     it("passes issue-438-AddFile with windows path sepator", () => {
         const zip = new Zip();
         zip.addFile("foo\\bar.txt", "test", "test");
+        const zipEntries = zip.getEntries().map((e) => e.entryName);
+        expect(zipEntries).to.deep.equal(["foo/bar.txt"]);
+
         zip.extractAllTo(destination);
 
         const files = walk(destination);
 
-        expect(files.sort()).to.deep.equal([pth.normalize("./test/xxx/foo/bar.txt")].sort());
+        expect(files.sort()).to.deep.equal([pth.normalize("./test/xxx/foo/bar.txt")]);
     });
 
     it("testing noSort option", () => {
