@@ -6,6 +6,10 @@ ADM-ZIP is a pure JavaScript implementation for zip data compression for [NodeJS
   <img src="https://github.com/cthackers/adm-zip/actions/workflows/ci.yml/badge.svg" alt="Build Status">
 </a>
 
+<a href="https://github.com/cthackers/adm-zip/actions/workflows/windows.yml">
+  <img src="https://github.com/cthackers/adm-zip/actions/workflows/windows.yml/badge.svg" alt="Windows Build Status">
+</a>
+
 # Installation
 
 With [npm](https://www.npmjs.com/) do:
